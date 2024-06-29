@@ -12,7 +12,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDatabaseConfiguration(builder.Configuration);
 builder.Services.AddRepositories();
 builder.Services.AddServices();
-builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddControllerConfiguration();
 builder.Services.AddConfigurations();
@@ -34,11 +33,6 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
 builder.Services.AddFluentValidationRulesToSwagger();
 
-/***
- * Authentication and Authorization
- */
-builder.Services.AddAuthentication();
-builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -56,9 +50,6 @@ var app = builder.Build();
     app.UseCors(CommonConstants.CorsPolicyName);
     app.UseRouting();
     app.UseHttpsRedirection();
-    
-    app.UseAuthentication();
-    app.UseAuthorization();
     
     app.MapSalaryEndpoints();
 

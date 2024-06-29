@@ -13,13 +13,25 @@ public class SalaryService : ISalaryService
     private readonly ILogger<SalaryService> _logger;
     private readonly ISalaryInfoRepository _salaryInfoRepo;
     private readonly PensionTierConfig _pensionTierConfig;
+    private readonly GRAConfig _graConfig;
+    private readonly List<TaxBand> _taxBands = new();
 
     public SalaryService(ILogger<SalaryService> logger, ISalaryInfoRepository salaryInfoRepo,
-        IOptions<PensionTierConfig> pensionTierConfig)
+        IOptions<PensionTierConfig> pensionTierConfig, IOptions<GRAConfig> graConfig)
     {
         _logger = logger;
         _salaryInfoRepo = salaryInfoRepo;
         _pensionTierConfig = pensionTierConfig.Value;
+        _graConfig = graConfig.Value;
+
+        for (var i = 0; i < _graConfig.IncomeBands.Length; i++)
+        {
+            _taxBands.Add(new TaxBand
+            {
+                UpperLimit = _graConfig.IncomeBands[i],
+                Rate = _graConfig.TaxRates[i]
+            });
+        }
     }
 
     public async Task<GenericApiResponse<SalaryResponseDto>> CalculateGrossSalaryAsync(
@@ -27,47 +39,60 @@ public class SalaryService : ISalaryService
     {
         try
         {
-            decimal grossSalary = 0;
-            decimal basicSalary = 0;
-            decimal totalPayeTax = 0;
-            decimal employeePensionContribution = 0;
-            decimal employerPensionContribution = 0;
+            decimal grossSalary = request.DesiredNetSalary;
+            decimal netSalary = 0;
+            decimal totalAllowances = request.Allowance;
+            decimal totalEmployeePensionContribution;
 
-            // Placeholder: Adjust basic salary and gross salary based on tax and pension contributions
-            // Loop until the desired net salary is matched
-            var totalAllowances = request.Allowances;
-            var taxableIncome = request.DesiredNetSalary + totalAllowances;
+            // Reverse calculate the gross salary to match desired net salary
+            while (true)
+            {
+                // Calculate employee pension contributions
+                totalEmployeePensionContribution = TotalEmployeePensionContribution(grossSalary);
 
-            employeePensionContribution = CalculateEmployeePension(taxableIncome);
-            var taxableIncomeAfterPension = taxableIncome - employeePensionContribution;
+                // Calculate taxable income
+                decimal taxableIncome = grossSalary - totalEmployeePensionContribution;
 
-            var totalPAYETax = CalculatePayeTax(taxableIncomeAfterPension);
+                // Calculate PAYE tax
+                decimal payeTax = CalculatePayeTax(taxableIncome);
 
-            grossSalary = taxableIncomeAfterPension + totalPAYETax;
-            basicSalary = grossSalary - totalAllowances;
-            employerPensionContribution = CalculateEmployerPension(basicSalary);
-            
+                // Calculate net salary
+                netSalary = grossSalary - payeTax - totalEmployeePensionContribution;
+
+                if (Math.Abs(netSalary - request.DesiredNetSalary) < 0.01m)
+                    break;
+
+                grossSalary += 0.01m;
+            }
+
+            // Calculate employer pension contributions
+            var totalEmployerPensionContribution = TotalEmployerPensionContribution(grossSalary);
+
+            var baseSalary = grossSalary - totalAllowances;
+            var totalPayeTax = CalculatePayeTax(grossSalary - totalEmployeePensionContribution);
+
 
             var salaryInfo = new SalaryInfo
             {
-                BasicSalary = basicSalary,
+                BasicSalary = baseSalary,
                 GrossSalary = grossSalary,
                 TotalPayeTax = totalPayeTax,
-                EmployeePensionContribution = employeePensionContribution,
-                EmployerPensionContribution = employerPensionContribution,
+                EmployeePensionContribution = totalEmployeePensionContribution,
+                EmployerPensionContribution = totalEmployerPensionContribution,
                 DesiredNetSalary = request.DesiredNetSalary,
-                Allowances = request.Allowances
+                Allowances = request.Allowance
             };
 
             await _salaryInfoRepo.AddSalaryInfoAsync(salaryInfo);
 
-            var response = new SalaryResponseDto()
+            var response = new SalaryResponseDto
             {
-                GrossSalary = grossSalary,
-                BasicSalary = basicSalary,
-                TotalPayeTax = totalPayeTax,
-                EmployeePensionContribution = employeePensionContribution,
-                EmployerPensionContribution = employerPensionContribution,
+                GrossSalary = Math.Round(grossSalary, 2),
+                BasicSalary = Math.Round(baseSalary, 2),
+                ComputedNetSalary = Math.Round(netSalary, 2),
+                TotalPayeTax = Math.Round(totalPayeTax, 2),
+                EmployeePensionContribution = Math.Round(totalEmployeePensionContribution, 2),
+                EmployerPensionContribution = Math.Round(totalEmployerPensionContribution, 2)
             };
 
             return response.ToOkApiResponse();
@@ -79,70 +104,41 @@ public class SalaryService : ISalaryService
                 "Oops! Something went wrong. Please try again later.");
         }
     }
-    
-    private decimal CalculateEmployeePension(decimal taxableIncome)
+
+    private decimal TotalEmployeePensionContribution(decimal grossSalary)
     {
-        // Implement logic to calculate employee pension based on Tier 2 rate (5.5%)
-        decimal tier1EmployeeContribution = taxableIncome * _pensionTierConfig.Tier1EmployeeRate * 0.01m;
-        decimal tier2EmployeeContribution = taxableIncome * _pensionTierConfig.Tier2EmployeeRate * 0.01m;
-        decimal tier3EmployeeContribution = taxableIncome * _pensionTierConfig.Tier3EmployeeRate * 0.01m;
-        var employeePensionContribution =
-            tier2EmployeeContribution + tier3EmployeeContribution + tier1EmployeeContribution;
-        return employeePensionContribution;
+        decimal employeePensionContributionTier1 = grossSalary * _pensionTierConfig.Tier1EmployeeRate / 100;
+        decimal employeePensionContributionTier2 = grossSalary * _pensionTierConfig.Tier2EmployeeRate / 100;
+        decimal employeePensionContributionTier3 = grossSalary * _pensionTierConfig.Tier3EmployeeRate / 100;
+        var totalEmployeePensionContribution = employeePensionContributionTier1 + employeePensionContributionTier2 + employeePensionContributionTier3;
+        return totalEmployeePensionContribution;
     }
 
-    private decimal CalculateEmployerPension(decimal basicSalary)
+    private decimal TotalEmployerPensionContribution(decimal grossSalary)
     {
-        // Implement logic to calculate employer pension based on Tier 1 and Tier 3 rates (13% + 5%)
-        var employerPensionContribution = basicSalary * _pensionTierConfig.Tier1EmployerRate  * 0.01m +
-                                      basicSalary * _pensionTierConfig.Tier2EmployerRate  * 0.01m +
-                                      basicSalary * _pensionTierConfig.Tier3EmployerRate  * 0.01m;
-        // return basicSalary * (0.13 + 0.05);
-        return employerPensionContribution;
+        decimal employerPensionContributionTier1 = grossSalary * _pensionTierConfig.Tier1EmployerRate / 100;
+        decimal employerPensionContributionTier2 = grossSalary * _pensionTierConfig.Tier2EmployerRate / 100;
+        decimal employerPensionContributionTier3 = grossSalary * _pensionTierConfig.Tier3EmployerRate / 100;
+        decimal totalEmployerPensionContribution =
+            employerPensionContributionTier1 + employerPensionContributionTier2 + employerPensionContributionTier3;
+        return totalEmployerPensionContribution;
     }
 
-    private static decimal CalculatePayeTax(decimal taxableIncome)
+    private decimal CalculatePayeTax(decimal taxableIncome)
     {
-        decimal payeTax = 0;
+        decimal totalTax = 0;
+        decimal remainingIncome = taxableIncome;
 
-        switch (taxableIncome)
+        foreach (var band in _taxBands)
         {
-            case <= 490:
-                return payeTax;
-            case <= 600:
-                payeTax += (taxableIncome - 490) * 0.05m;
-                return payeTax;
-            case <= 730:
-                payeTax += 110 * 0.05m;
-                payeTax += (taxableIncome - 600) * 0.10m;
-                return payeTax;
-            case <= 3896.67m:
-                payeTax += 110 * 0.05m;
-                payeTax += 130 * 0.10m;
-                payeTax += (taxableIncome - 730) * 0.175m;
-                return payeTax;
-            case <= 19896.67m:
-                payeTax += 110 * 0.05m;
-                payeTax += 130 * 0.10m;
-                payeTax += 3166.67m * 0.175m;
-                payeTax += (taxableIncome - 3896.67m) * 0.25m;
-                return payeTax;
-            case <= 50416.67m:
-                payeTax += 110 * 0.05m;
-                payeTax += 130 * 0.10m;
-                payeTax += 3166.67m * 0.175m;
-                payeTax += 16000 * 0.25m;
-                payeTax += (taxableIncome - 19896.67m) * 0.30m;
-                return payeTax;
-            default:
-                payeTax += 110 * 0.05m;
-                payeTax += 130 * 0.10m;
-                payeTax += 3166.67m * 0.175m;
-                payeTax += 16000 * 0.25m;
-                payeTax += 30520 * 0.30m;
-                payeTax += (taxableIncome - 50416.67m) * 0.35m;
-                return payeTax;
-        }
-    }
+            if (remainingIncome <= 0)
+                break;
 
+            decimal bandIncome = Math.Min(remainingIncome, band.UpperLimit);
+            totalTax += bandIncome * band.Rate;
+            remainingIncome -= bandIncome;
+        }
+
+        return totalTax;
+    }
 }

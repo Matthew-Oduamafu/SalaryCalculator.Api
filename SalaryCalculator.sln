@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SalaryCalculator.Api", "SalaryCalculator.Api\SalaryCalculator.Api.csproj", "{76C9BD00-42B0-465C-8E94-4986630F2CBE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SalaryCalculator.Api.Tests", "SalaryCalculator.Api.Tests\SalaryCalculator.Api.Tests.csproj", "{879B724B-0B1E-48E4-AD06-56CBE56332F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{76C9BD00-42B0-465C-8E94-4986630F2CBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{76C9BD00-42B0-465C-8E94-4986630F2CBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{76C9BD00-42B0-465C-8E94-4986630F2CBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{879B724B-0B1E-48E4-AD06-56CBE56332F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{879B724B-0B1E-48E4-AD06-56CBE56332F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{879B724B-0B1E-48E4-AD06-56CBE56332F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{879B724B-0B1E-48E4-AD06-56CBE56332F3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -12,11 +12,10 @@ public class SalaryRequestDtoValidator : AbstractValidator<SalaryRequestDto>
 
         RuleFor(x => x.DesiredNetSalary)
             .NotNull()
-            .GreaterThan(0.0m)
-            .LessThanOrEqualTo(decimal.MaxValue);
-
-        RuleFor(x => x.Allowances)
-            .NotNull()
             .GreaterThan(0.0m);
+
+        RuleFor(x => x.Allowance)
+            .NotNull()
+            .GreaterThanOrEqualTo(0.0m);
     }
 }
