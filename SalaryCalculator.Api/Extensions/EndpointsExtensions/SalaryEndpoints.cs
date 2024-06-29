@@ -13,7 +13,7 @@ public static class SalaryEndpoints
         var group = routes.MapGroup("/api/salary")
             .WithTags("Salary");
 
-        group.MapPost("",
+        group.MapPost("gross",
                 async ([FromServices] ISalaryService salaryService, [FromBody] SalaryRequestDto request) =>
                 {
                     var response = await salaryService.CalculateGrossSalaryAsync(request);

@@ -76,6 +76,7 @@ public class SalaryService : ISalaryService
             {
                 BasicSalary = baseSalary,
                 GrossSalary = grossSalary,
+                ComputedNetSalary = netSalary,
                 TotalPayeTax = totalPayeTax,
                 EmployeePensionContribution = totalEmployeePensionContribution,
                 EmployerPensionContribution = totalEmployerPensionContribution,
